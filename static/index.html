@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NODOZE — 告警 Triage 仪表板</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+  <style>
+    :root {
+      --bg-deep: #080b0f;
+      --bg-panel: #0f1419;
+      --bg-card: #161b22;
+      --border: #21262d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #f59e0b;
+      --accent-dim: #d97706;
+      --danger: #ef4444;
+      --success: #22c55e;
+      --info: #3b82f6;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+      --font-sans: 'Outfit', system-ui, sans-serif;
+      --radius: 6px;
+      --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-deep);
+      color: var(--text);
+    }
+
+    /* 背景网格纹理 */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(245, 158, 11, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(245, 158, 11, 0.03) 1px, transparent 1px);
+      background-size: 32px 32px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .app {
+      position: relative;
+      z-index: 1;
+      height: 100vh;
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Header */
+    header {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 0.75rem;
+      margin-bottom: 0.75rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .logo {
+      display: flex;
+      align-items: baseline;
+      gap: 0.5rem;
+    }
+
+    .logo h1 {
+      font-family: var(--font-mono);
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+    }
+
+    .logo .tagline {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 400;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 0.75rem;
+    }
+
+    /* Buttons */
+    .btn {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-weight: 500;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg-deep);
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-dim);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Config Panel */
+    .config-panel {
+      flex: 0 0 auto;
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 0.75rem;
+      overflow: hidden;
+    }
+
+    .config-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      background: rgba(0,0,0,0.2);
+      transition: background 0.2s;
+    }
+
+    .config-header:hover {
+      background: rgba(0,0,0,0.3);
+    }
+
+    .config-header h2 {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .config-body {
+      padding: 0.75rem 1rem;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+      max-height: 160px;
+      overflow-y: auto;
+    }
+
+    .config-item {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+
+    .config-item label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .config-item input,
+    .config-item select {
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      padding: 0.4rem 0.6rem;
+      background: var(--bg-deep);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--text);
+    }
+
+    .config-item input:focus,
+    .config-item select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    /* Main Layout */
+    .main-grid {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      overflow: hidden;
+    }
+
+    @media (max-width: 1000px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Alert List */
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel-header {
+      padding: 0.75rem 1rem;
+      background: rgba(0,0,0,0.2);
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+
+    .graph-alert-info {
+      font-size: 0.75rem;
+      font-family: var(--font-mono);
+      color: var(--accent);
+      font-weight: 500;
+    }
+
+    .panel-body {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+    .alert-list {
+      list-style: none;
+    }
+
+    .alert-item {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--border);
+      cursor: pointer;
+      transition: background 0.15s;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 0.75rem;
+      align-items: center;
+    }
+
+    .alert-item:hover {
+      background: rgba(245, 158, 11, 0.08);
+    }
+
+    .alert-item.active {
+      background: rgba(245, 158, 11, 0.15);
+      border-left: 3px solid var(--accent);
+    }
+
+    .score-badge {
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      min-width: 52px;
+      text-align: center;
+    }
+
+    .score-high {
+      background: rgba(239, 68, 68, 0.25);
+      color: #f87171;
+    }
+
+    .score-mid {
+      background: rgba(245, 158, 11, 0.25);
+      color: var(--accent);
+    }
+
+    .score-low {
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+    }
+
+    .alert-info {
+      min-width: 0;
+    }
+
+    .alert-info .rule-desc {
+      font-size: 0.9rem;
+      color: var(--text);
+      margin-bottom: 0.2rem;
+    }
+
+    .alert-info .meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    .alert-item .path-count {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* Graph Panel */
+    .graph-panel .panel-body {
+      flex: 1;
+      min-height: 0;
+      padding: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    #cy {
+      width: 100%;
+      flex: 1;
+      min-height: 200px;
+      border-radius: 4px;
+    }
+
+    .path-description {
+      flex: 0 0 auto;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.75rem 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      line-height: 1.6;
+      color: var(--text-muted);
+      overflow-x: auto;
+    }
+
+    .path-description .path-label {
+      font-size: 0.7rem;
+      color: var(--accent);
+      margin-bottom: 0.4rem;
+      font-weight: 600;
+    }
+
+    .path-description .path-chain {
+      color: var(--text);
+    }
+
+    .path-description .path-chain .node {
+      color: var(--info);
+    }
+
+    .path-description .path-chain .node.socket {
+      color: var(--accent);
+    }
+
+    .path-description .path-chain .node.user {
+      color: var(--success);
+    }
+
+    .path-description .path-chain .rel {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+    }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 1;
+      min-height: 200px;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      text-align: center;
+      padding: 1.5rem;
+    }
+
+    .empty-state svg {
+      width: 64px;
+      height: 64px;
+      margin-bottom: 1rem;
+      opacity: 0.4;
+    }
+
+    /* Toast / Status */
+    .toast {
+      position: fixed;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      padding: 0.75rem 1.25rem;
+      border-radius: var(--radius);
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      z-index: 100;
+      animation: slideIn 0.3s ease;
+      box-shadow: var(--shadow);
+    }
+
+    .toast.success {
+      background: var(--success);
+      color: var(--bg-deep);
+    }
+
+    .toast.error {
+      background: var(--danger);
+      color: white;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    /* Loading */
+    .loading {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.5rem;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="logo">
+        <h1>NODOZE</h1>
+        <span class="tagline">Automated Provenance Triage · NDSS 2019</span>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-secondary" id="btnBuildDb">构建频率库</button>
+        <button class="btn btn-primary" id="btnTriage">运行 Triage</button>
+      </div>
+    </header>
+
+    <section class="config-panel">
+      <div class="config-header" id="configToggle">
+        <h2>⚙ 配置参数</h2>
+        <span id="configArrow">▼</span>
+      </div>
+      <div class="config-body" id="configBody">
+        <div class="config-item">
+          <label>基线日志 (baseline)</label>
+          <select id="baselinePath"></select>
+        </div>
+        <div class="config-item">
+          <label>待检测日志 (triage)</label>
+          <select id="triagePath"></select>
+        </div>
+        <div class="config-item">
+          <label>τl 最大路径长度</label>
+          <input type="number" id="tauL" value="5" min="1" max="20">
+        </div>
+        <div class="config-item">
+          <label>τm 合并阈值</label>
+          <input type="number" id="tauM" value="0.1" min="0" max="1" step="0.01">
+        </div>
+        <div class="config-item">
+          <label>τd 决策阈值 (可选)</label>
+          <input type="text" id="tauD" placeholder="null">
+        </div>
+        <div class="config-item">
+          <label>window_lines</label>
+          <input type="number" id="windowLines" value="500" min="1">
+        </div>
+        <div class="config-item">
+          <label>top_n (可选)</label>
+          <input type="number" id="topN" placeholder="全部" min="1">
+        </div>
+      </div>
+    </section>
+
+    <div class="main-grid">
+      <div class="panel">
+        <div class="panel-header">告警列表（按异常分数排序）</div>
+        <div class="panel-body">
+          <div class="empty-state" id="emptyAlerts">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            点击「运行 Triage」分析告警
+          </div>
+          <ul class="alert-list" id="alertList" style="display:none;"></ul>
+        </div>
+      </div>
+
+      <div class="panel graph-panel">
+        <div class="panel-header">
+          <span>依赖图 (Dependency Graph)</span>
+          <span id="graphAlertInfo" class="graph-alert-info"></span>
+        </div>
+        <div class="panel-body">
+          <div class="empty-state" id="emptyGraph">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+            </svg>
+            选择告警查看依赖路径
+          </div>
+          <div id="cy" style="display:none;"></div>
+          <div class="path-description" id="pathDescription" style="display:none;">
+            <div class="path-label">攻击路径说明</div>
+            <div class="path-chain" id="pathChain"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = '/api';
+
+    function toast(msg, type = 'success') {
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      el.textContent = msg;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 3000);
+    }
+
+    async function fetchJSON(url, opts = {}) {
+      const r = await fetch(url, { ...opts, headers: { 'Content-Type': 'application/json', ...opts.headers } });
+      const text = await r.text();
+      try {
+        return JSON.parse(text);
+      } catch (_) {
+        throw new Error(r.ok ? '响应格式错误' : (text.slice(0, 200) || `HTTP ${r.status}`));
+      }
+    }
+
+    // Config
+    let configOpen = true;
+    document.getElementById('configToggle').onclick = () => {
+      configOpen = !configOpen;
+      document.getElementById('configBody').style.display = configOpen ? 'grid' : 'none';
+      document.getElementById('configArrow').textContent = configOpen ? '▼' : '▶';
+    };
+
+    async function loadConfig() {
+      const cfg = await fetchJSON(`${API}/config`);
+      document.getElementById('tauL').value = cfg.tau_l ?? 5;
+      document.getElementById('tauM').value = cfg.tau_m ?? 0.1;
+      document.getElementById('tauD').value = cfg.tau_d ?? '';
+      document.getElementById('windowLines').value = cfg.window_lines ?? 500;
+      document.getElementById('topN').value = cfg.top_n ?? '';
+      return cfg;
+    }
+
+    async function loadDatasets() {
+      const { datasets } = await fetchJSON(`${API}/datasets`);
+      const opts = datasets.length
+        ? datasets.map(d => `<option value="${d.path}">${d.name}</option>`).join('')
+        : '<option value="">请将 ndjson 放入 data/ 目录</option>';
+      const baseEl = document.getElementById('baselinePath');
+      const triageEl = document.getElementById('triagePath');
+      baseEl.innerHTML = triageEl.innerHTML = opts;
+      const cfg = await loadConfig();
+      if (cfg.baseline_ndjson_path) baseEl.value = cfg.baseline_ndjson_path;
+      if (cfg.triage_ndjson_path) triageEl.value = cfg.triage_ndjson_path;
+    }
+
+    async function saveConfig() {
+      const tauD = document.getElementById('tauD').value.trim();
+      const topN = document.getElementById('topN').value.trim();
+      await fetchJSON(`${API}/config`, {
+        method: 'POST',
+        body: JSON.stringify({
+          baseline_ndjson_path: document.getElementById('baselinePath').value,
+          triage_ndjson_path: document.getElementById('triagePath').value,
+          tau_l: parseInt(document.getElementById('tauL').value, 10),
+          tau_m: parseFloat(document.getElementById('tauM').value),
+          tau_d: tauD ? parseFloat(tauD) : null,
+          window_lines: parseInt(document.getElementById('windowLines').value, 10),
+          top_n: topN ? parseInt(topN, 10) : null,
+        }),
+      });
+    }
+
+    // Build DB
+    document.getElementById('btnBuildDb').onclick = async () => {
+      await saveConfig();
+      const btn = document.getElementById('btnBuildDb');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loading"></span>构建中...';
+      try {
+        const res = await fetchJSON(`${API}/build-db`, { method: 'POST' });
+        if (res.ok) toast(res.message);
+        else toast(res.error || '失败', 'error');
+      } catch (e) {
+        toast(e.message || '请求失败', 'error');
+      }
+      btn.disabled = false;
+      btn.textContent = '构建频率库';
+    };
+
+    // Triage
+    let triageResults = [];
+    let cy = null;
+
+    document.getElementById('btnTriage').onclick = async () => {
+      await saveConfig();
+      const btn = document.getElementById('btnTriage');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loading"></span>分析中...';
+      try {
+        const res = await fetchJSON(`${API}/triage`, { method: 'POST' });
+        if (res.ok) {
+          triageResults = res.results;
+          renderAlerts(triageResults);
+          toast(`完成，共 ${res.total} 条告警`);
+        } else {
+          toast(res.error || '失败', 'error');
+        }
+      } catch (e) {
+        toast(e.message || '请求失败', 'error');
+      }
+      btn.disabled = false;
+      btn.textContent = '运行 Triage';
+    };
+
+    function scoreClass(s) {
+      if (s >= 0.7) return 'score-high';
+      if (s >= 0.3) return 'score-mid';
+      return 'score-low';
+    }
+
+    function renderAlerts(results) {
+      const list = document.getElementById('alertList');
+      const empty = document.getElementById('emptyAlerts');
+      if (!list || !empty) return;
+      if (!results || results.length === 0) {
+        empty.style.display = 'flex';
+        list.style.display = 'none';
+        list.innerHTML = '';
+        renderGraph(null, null);
+        return;
+      }
+      empty.style.display = 'none';
+      list.style.display = 'block';
+      list.innerHTML = results.map((r, i) => `
+        <li class="alert-item" data-index="${i}">
+          <span class="score-badge ${scoreClass(r.aggregate_score)}">${r.aggregate_score.toFixed(2)}</span>
+          <div class="alert-info">
+            <div class="rule-desc">${escapeHtml(r.rule_desc)}</div>
+            <div class="meta">rule_id=${r.rule_id} · ${r.host}</div>
+          </div>
+          <span class="path-count">${r.path_count} paths</span>
+        </li>
+      `).join('');
+
+      list.querySelectorAll('.alert-item').forEach(el => {
+        el.onclick = () => {
+          const idx = parseInt(el.dataset.index, 10);
+          list.querySelectorAll('.alert-item').forEach(x => x.classList.remove('active'));
+          el.classList.add('active');
+          renderGraph(triageResults[idx], idx);
+        };
+      });
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function formatPathDescription(edges) {
+      if (!edges || edges.length === 0) return '';
+      const seen = new Set();
+      const unique = edges.filter(e => {
+        const k = `${e.src}\0${e.dst}\0${e.rel}`;
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+      });
+      const typeLabel = (id) => {
+        if (id.includes('|')) return '进程';
+        if (/^\d+\.\d+\.\d+\.\d+(:\d+)?$/.test(id)) return '套接字';
+        return '用户';
+      };
+      const nodeClass = (id) => {
+        if (id.includes('|')) return 'node';
+        if (/^\d+\.\d+\.\d+\.\d+(:\d+)?$/.test(id)) return 'node socket';
+        return 'node user';
+      };
+      const relLabel = { 'Pro Start': '进程启动', 'Pro End': '进程结束', 'IP Write': '网络写入', 'IP Read': '网络读取' };
+      const parts = [];
+      parts.push(`<span class="${nodeClass(unique[0].src)}" title="${escapeHtml(unique[0].src)}">${typeLabel(unique[0].src)} ${truncate(unique[0].src, 24)}</span>`);
+      unique.forEach((e) => {
+        parts.push(` <span class="rel">—[${relLabel[e.rel] || e.rel}]→</span> `);
+        parts.push(`<span class="${nodeClass(e.dst)}" title="${escapeHtml(e.dst)}">${typeLabel(e.dst)} ${truncate(e.dst, 24)}</span>`);
+      });
+      return parts.join('');
+    }
+
+    function renderGraph(alert, alertIndex) {
+      const empty = document.getElementById('emptyGraph');
+      const cyEl = document.getElementById('cy');
+      const infoEl = document.getElementById('graphAlertInfo');
+      const pathDesc = document.getElementById('pathDescription');
+      const pathChain = document.getElementById('pathChain');
+      if (!empty || !cyEl) return;
+      if (!alert || !alert.edges || alert.edges.length === 0) {
+        if (infoEl) infoEl.textContent = '';
+        if (pathDesc) pathDesc.style.display = 'none';
+        empty.style.display = 'flex';
+        cyEl.style.display = 'none';
+        if (cy) { cy.destroy(); cy = null; }
+        return;
+      }
+      if (infoEl) infoEl.textContent = `告警 #${(alertIndex ?? 0) + 1} · ${alert.host} · rule_id=${alert.rule_id}`;
+      if (pathChain) {
+        pathChain.innerHTML = formatPathDescription(alert.edges);
+      }
+      if (pathDesc) pathDesc.style.display = 'block';
+
+      const nodes = new Map();
+      const seenEdges = new Set();
+      const edges = [];
+      alert.edges.forEach((e, i) => {
+        const key = `${e.src}\0${e.dst}\0${e.rel}`;
+        if (seenEdges.has(key)) return;
+        seenEdges.add(key);
+        nodes.set(e.src, { id: e.src, label: truncate(e.src), type: inferType(e.src) });
+        nodes.set(e.dst, { id: e.dst, label: truncate(e.dst), type: inferType(e.dst) });
+        edges.push({ id: `e${i}`, source: e.src, target: e.dst, label: e.rel });
+      });
+      const targets = new Set(edges.map(e => e.target));
+      const roots = [...nodes.keys()].filter(id => !targets.has(id));
+      if (roots.length === 0) roots.push([...nodes.keys()][0]);
+
+      const elements = [
+        ...Array.from(nodes.values()).map(n => ({
+          data: { id: n.id, label: n.label },
+          classes: n.type,
+        })),
+        ...edges.map(e => ({
+          data: { id: e.id, source: e.source, target: e.target, label: e.label },
+        })),
+      ];
+
+      empty.style.display = 'none';
+      cyEl.style.display = 'block';
+
+      if (cy) cy.destroy();
+      cy = cytoscape({
+        container: document.getElementById('cy'),
+        elements,
+        style: [
+          {
+            selector: 'node',
+            style: {
+              'label': 'data(label)',
+              'text-valign': 'bottom',
+              'text-halign': 'center',
+              'font-size': 9,
+              'font-family': 'JetBrains Mono',
+              'color': '#e6edf3',
+              'text-margin-y': 8,
+              'text-background-color': '#0f1419',
+              'text-background-opacity': 1,
+              'text-background-padding': 5,
+              'text-background-shape': 'roundrectangle',
+              'text-border-opacity': 1,
+              'text-border-width': 1,
+              'text-border-color': '#21262d',
+              'width': 40,
+              'height': 40,
+              'background-color': '#3b82f6',
+              'border-width': 2,
+              'border-color': '#60a5fa',
+            },
+          },
+          {
+            selector: 'node.process',
+            style: { 'background-color': '#3b82f6' },
+          },
+          {
+            selector: 'node.socket',
+            style: { 'background-color': '#f59e0b' },
+          },
+          {
+            selector: 'node.user',
+            style: { 'background-color': '#22c55e' },
+          },
+          {
+            selector: 'edge',
+            style: {
+              'width': 2,
+              'line-color': '#8b949e',
+              'target-arrow-color': '#8b949e',
+              'target-arrow-shape': 'triangle',
+              'curve-style': 'bezier',
+              'font-size': 9,
+              'font-family': 'JetBrains Mono',
+              'color': '#e6edf3',
+              'text-margin-y': -12,
+              'text-margin-x': 8,
+              'text-background-color': '#0f1419',
+              'text-background-opacity': 1,
+              'text-background-padding': 6,
+              'text-background-shape': 'roundrectangle',
+              'text-border-opacity': 1,
+              'text-border-width': 1,
+              'text-border-color': '#21262d',
+              'label': 'data(label)',
+            },
+          },
+        ],
+        layout: {
+          name: 'breadthfirst',
+          directed: true,
+          roots: roots,
+          spacingFactor: 2.2,
+          animate: true,
+          animationDuration: 300,
+        },
+      });
+    }
+
+    function truncate(s, len = 18) {
+      return s.length > len ? s.slice(0, len) + '…' : s;
+    }
+
+    function inferType(id) {
+      if (id.includes('|')) return 'process';
+      if (/^\d+\.\d+\.\d+\.\d+(:\d+)?$/.test(id)) return 'socket';
+      return 'user';
+    }
+
+    // Init
+    loadDatasets();
+  </script>
+</body>
+</html>
