@@ -1,0 +1,10 @@
+{
+  "baseline_ndjson_path": "data/large_baseline.ndjson",
+  "triage_ndjson_path": "data/attack_complex_graph.ndjson",
+  "db_path": "event_freq.db",
+  "tau_l": 1000,
+  "tau_m": 0.05,
+  "tau_d": null,
+  "top_n": null,
+  "window_lines": 5000
+}

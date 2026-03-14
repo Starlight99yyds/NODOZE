@@ -1,0 +1,11 @@
+# PyETWkit - Windows ETW 事件收集
+# 若使用本地 PyETWkit：pip install ./PyETWkit
+# 或从 PyPI：pip install pyetwkit
+pyetwkit>=3.0.0
+
+# PostgreSQL 支持（可选，仅在使用 --db postgresql 时需要）
+psycopg2-binary>=2.9.0
+
+# Web 前端
+flask>=3.0.0
+flask-cors>=4.0.0
