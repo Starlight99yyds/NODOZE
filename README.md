@@ -17,7 +17,7 @@ NODOZE/
 ├── config.json    # 运行参数配置（前端与 CLI 共用）
 ├── static/        # Web 前端静态资源
 │   └── index.html # NODOZE 仪表板（告警列表、依赖图、攻击路径说明）
-├── data/          # ndjson 历史日志
+├── data/          # ndjson 历史日志（请解压data.zip）
 └── scripts/
     └── gen_data.py # 测试数据生成（含 --large 大规模基线）
 ```
