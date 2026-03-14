@@ -1,0 +1,30 @@
+# Git 与 IDE
+.git
+.gitignore
+.vscode
+.idea
+*.md
+
+# Python 缓存
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info
+.eggs
+dist
+build
+
+# PyETWkit（Windows ETW 专用，Docker 中不需要）
+PyETWkit
+
+# 虚拟环境
+venv
+.venv
+env
+
+# 其他
+*.db
+.DS_Store
+*.log
