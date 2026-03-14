@@ -1,0 +1,13 @@
+services:
+  nodoze:
+    build: .
+    container_name: NODOZE
+    ports:
+      - "5000:5000"
+    volumes:
+      # 挂载 data 目录，便于使用自定义 ndjson 和持久化 event_freq.db
+      - ./data:/app/data
+      # 挂载 config.json，便于修改配置
+      - ./config.json:/app/config.json
+    environment:
+      - FLASK_APP=app.py

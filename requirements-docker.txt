@@ -1,0 +1,4 @@
+# NODOZE Web 服务依赖（Docker 精简版）
+# 不含 pyetwkit（Windows ETW 专用）和 psycopg2（可选）
+flask>=3.0.0
+flask-cors>=4.0.0
