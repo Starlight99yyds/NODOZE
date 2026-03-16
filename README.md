@@ -22,8 +22,6 @@ NODOZE/
     └── gen_data.py # 测试数据生成（含 --large 大规模基线）
 ```
 
-<mark>记得解压data.zip！</mark>
-
 ---
 
 ## 二、核心概念
@@ -40,13 +38,22 @@ NODOZE/
 
 ### 2.2 实体类型
 
-| 类型    | 示例 ID          |
-| ------- | ---------------- |
-| process | `host\|sshd`     |
-| socket  | `192.168.1.1:22` |
-| user    | `root`           |
+| 类别             | 实体类型       | 说明                       |
+| :--------------- | :------------- | :------------------------- |
+| Subject（主体）  | Process（进程） | 唯一能作为信息流发起方的实体 |
+| Object（客体）   | Process        | 可作为信息流接收方           |
+|                  | File（文件）    | 文件实体                   |
+|                  | Socket（套接字）| 网络连接实体               |
 
-### 2.3 支持的事件类型
+### 2.3 依赖事件关系
+
+| SRC           | DST           | REL（关系类型）                      |
+| :------------ | :------------ | :----------------------------------- |
+| Process       | Process       | Pro Start；Pro End                   |
+| Process       | File          | File Write；File Read；File Execute  |
+| Process       | Socket        | IP Write；IP Read                    |
+
+### 2.4 支持的事件类型
 
 - **sshd 认证失败 / 暴力破解 / 无效用户**：\<host\|sshd, 外部IP:port, IP Write\>
 - **PAM session opened**：\<host\|su, user, Pro Start\>
@@ -176,13 +183,13 @@ ndjson 历史日志
 
 ## 六、参数说明
 
-| 参数         | 说明                                                         | 默认值 |
-| ------------ | ------------------------------------------------------------ | ------ |
-| τl (tau_l)   | 最大路径长度：DFS 枚举时单条路径允许的最大边数，越大图越复杂 | 20     |
-| τm (tau_m)   | 路径合并阈值：相邻路径分数差 ≥ τm 时停止合并，越大保留路径越少 | 0.1    |
-| τd (tau_d)   | 决策阈值：低于此分数的告警视为误报并过滤，null 表示不过滤    | null   |
-| window_lines | 上下文窗口行数：告警前后各取多少行日志构建依赖图             | 500    |
-| top_n        | 仅输出前 N 条告警，null 表示全部输出                         | null   |
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| τl (tau_l) | 最大路径长度：DFS 枚举时单条路径允许的最大边数，越大图越复杂 | 20 |
+| τm (tau_m) | 路径合并阈值：相邻路径分数差 ≥ τm 时停止合并，越大保留路径越少 | 0.1 |
+| τd (tau_d) | 决策阈值：低于此分数的告警视为误报并过滤，null 表示不过滤 | null |
+| window_lines | 上下文窗口行数：告警前后各取多少行日志构建依赖图 | 500 |
+| top_n | 仅输出前 N 条告警，null 表示全部输出 | null |
 
 ---
 
@@ -213,7 +220,6 @@ docker-compose up --build
 浏览器访问 http://localhost:5000 使用 NODOZE 仪表板。
 
 **功能**：
-
 - **配置面板**：选择基线/待检测日志，调整 τl、τm、τd、window_lines、top_n
 - **构建频率库**：基于基线数据生成 event_freq.db
 - **运行 Triage**：执行告警分析，按异常分数排序
@@ -222,7 +228,6 @@ docker-compose up --build
 - **攻击路径说明**：文字描述依赖链（用户/进程/套接字及关系类型）
 
 **数据文件**：
-
 - `normal_baseline.ndjson`：常规基线（约 4600 条）
 - `large_baseline.ndjson`：大规模基线（约 10 万条，`python scripts/gen_data.py --large`）
 - `attack_complex_graph.ndjson`：复杂依赖图测试（11 节点 + 菱形分支）
